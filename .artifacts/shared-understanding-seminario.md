@@ -60,6 +60,13 @@ El acceso se maneja con **roles y permisos**. **Persona y rol son conceptos sepa
 - La **institución no tiene usuario**. Tiene un **correo de contacto** para recibir notificaciones.
 - **Nadie se auto-registra.** El seminario crea el usuario de **todos** los alumnos (presenciales y de diplomado) y el sistema les envía su acceso para que completen su perfil.
 
+### Reglas de acceso
+
+- **ACC-01 [CONFIRMADO]** Todo alumno registrado recibe **automáticamente** un usuario con el rol **Alumno** y su acceso (deriva de `ADM-07`). Nadie crea a mano el usuario de un alumno.
+- **ACC-02 [CONFIRMADO]** Los **maestros se crean manualmente** por registro académico o por el administrador (deriva de `REG-07`). Un maestro puede ser también alumno: la misma persona suma el rol.
+- **ACC-03 [CONFIRMADO]** Cada persona tiene **un solo usuario** y puede tener **varios roles**. La institución no tiene usuario.
+- **ACC-04 [PENDIENTE de diseño]** Si el rol Alumno se **asigna** (como cualquier otro rol) o se **deriva** de tener una ficha de alumno. Recomendación: asignarlo. Se resuelve al definir los modelos de personas y roles.
+
 ## 4. Glosario
 
 | Término | Definición acordada |
@@ -278,7 +285,7 @@ Nada de esto va fijo en el código:
 
 Estas decisiones no cambian las reglas de negocio. Fijan el terreno donde se construye el sistema.
 
-- **TEC-01 [CONFIRMADO]** **Framework: Django 5.2 (LTS)**, arquitectura de **monolito** con una app por área (admisión y cobranza, registro académico, biblioteca) más un módulo de configuración. Se eligió por traer autenticación, roles y permisos, panel de administración (útil para la sección 9), ORM con migraciones y buen soporte para PDFs, auditoría y tareas programadas.
+- **TEC-01 [CONFIRMADO]** **Framework: Django 5.2 (LTS)**, arquitectura de **monolito** con una app por área (admisión y cobranza, registro académico, biblioteca) más un módulo de configuración y un módulo de personas y accesos (ver `TEC-11`). Se eligió por traer autenticación, roles y permisos, panel de administración (útil para la sección 9), ORM con migraciones y buen soporte para PDFs, auditoría y tareas programadas.
 - **TEC-02 [CONFIRMADO]** **Alojamiento: VPS con panel Webuzo.** La app corre con **gunicorn** en un puerto interno (30000) y se publica desde el *Application Manager* de Webuzo (tipo Python 3, entorno *Production*). Las variables sensibles (`SECRET_KEY`, base de datos, `DEBUG=False`) van como **variables de entorno**, nunca en el repositorio.
 - **TEC-03 [CONFIRMADO]** **Python 3.11.3** instalado en el VPS (`/usr/local/apps/python3/bin/python3`), compatible con Django 5.2. Se usa un **entorno virtual** por proyecto.
 - **TEC-04 [CONFIRMADO]** Los archivos estáticos y los **adjuntos** (soportes escaneados, certificados emitidos) se sirven **fuera de Django** y se almacenan como archivos, no dentro de la base de datos. Se deben incluir en los respaldos.
@@ -288,3 +295,4 @@ Estas decisiones no cambian las reglas de negocio. Fijan el terreno donde se con
 - **TEC-08 [PENDIENTE]** Base de datos y dominio (ver pendientes 12 y 13). El índice de búsqueda de biblioteca (`BIB-05`) sigue **sin decidir**.
 - **TEC-09 [PENDIENTE]** **Respaldos**: frecuencia, ubicación y responsable (base de datos y adjuntos). Definirlos antes de salir a producción.
 - **TEC-10 [CONFIRMADO]** Alternativa descartada por ahora: **Laravel**. Solo se retomaría si Django no se pudiera desplegar en el VPS.
+- **TEC-11 [CONFIRMADO]** Existe una quinta app, **`personas`**, dueña de personas, usuarios, roles y login. Las demás apps dependen de ella; ella **no** depende de ninguna. `admision_cobranza` y `registro_academico` crean usuarios llamando a su servicio (ver `ACC-01` y `ACC-02`). Los nombres de las apps son: `personas`, `admision_cobranza`, `registro_academico`, `biblioteca`, `configuracion`.
