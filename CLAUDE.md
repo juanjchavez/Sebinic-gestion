@@ -13,6 +13,10 @@ Estados de cada regla:
 
 Si el código y el documento se contradicen, el documento manda; si el documento está desactualizado, avisar al usuario en vez de corregirlo en silencio.
 
+El modelo de datos acordado (entidades, relaciones y dependencias entre apps) está en `.artifacts/modelo-datos-inicial.md`. Partir de él al escribir `models.py`.
+
+En el documento, **"administración"** en lo operativo significa el rol **Admisión y cobranza**; el **Administrador** solo actúa a nivel de sistema.
+
 ## Gestión del proyecto
 
 Tablero kanban de tareas: https://github.com/users/juanjchavez/projects/3/views/1
@@ -20,27 +24,28 @@ Tablero kanban de tareas: https://github.com/users/juanjchavez/projects/3/views/
 ## Stack (TEC-01 a TEC-05)
 
 - Django 5.2 LTS, monolito con cinco apps dentro de `apps/`: `personas`, `admision_cobranza`, `registro_academico`, `biblioteca` y `configuracion` (TEC-11). Mantener esos nombres.
-- `personas` es dueña de personas, usuarios, roles y login. Las demás apps dependen de ella y **ella no depende de ninguna**. Los usuarios se crean siempre mediante su servicio: los alumnos automáticamente al registrarlos (ACC-01) y los maestros a mano por registro académico o el administrador (ACC-02).
+- `personas` es dueña de personas (naturales y jurídicas), usuarios, roles, login (con correo, ACC-05) y adjuntos. Las demás apps dependen de ella y **ella no depende de ninguna**. Los usuarios se crean siempre mediante su servicio: los alumnos automáticamente al finalizar su admisión (ACC-01, ACC-06) y los maestros a mano por registro académico o el administrador (ACC-02).
 - Python 3.11 con entorno virtual por proyecto.
 - Despliegue: VPS con Webuzo, gunicorn en el puerto interno 30000.
 - Secretos y configuración sensible (`SECRET_KEY`, BD, `DEBUG`) **solo por variables de entorno**, nunca en el repo.
-- Estáticos y adjuntos (soportes escaneados, certificados emitidos) se guardan como **archivos fuera de la BD** y se sirven fuera de Django.
+- Estáticos y adjuntos (soportes escaneados, certificados emitidos) se guardan como **archivos fuera de la BD** y se sirven fuera de Django. Los adjuntos van en un directorio **privado** y se descargan solo tras verificar el permiso del área (ADM-08).
+- Auditoría con `django-simple-history` (TEC-07).
 - Tareas programadas (avisos de mora, ventanas de notas vencidas, notificaciones de cola) con **cron** del VPS, expuestas como management commands.
 - Base de datos: **PostgreSQL 17** en el servidor (actualizado desde la 13.23; compatible con Django 5.2, que soporta PG 14+). Driver: `psycopg` (v3).
-- Dominio, índice de búsqueda de biblioteca y respaldos siguen **[PENDIENTE]** (TEC-08, TEC-09).
+- Dominio, índice de búsqueda de biblioteca y respaldos siguen **[PENDIENTE]** (TEC-08, TEC-09). El índice bloquea las vistas de biblioteca para alumnos (BIB-05).
 
 ## Reglas de oro
 
-1. **Nada de valores fijos en el código.** Montos, plazos, notas mínimas, títulos, firmas, ventana de notas, parámetros de biblioteca y calendario van en el módulo de configuración (sección 9 del documento), editable por el Administrador. Los valores del documento ($150, $10, 20 días, etc.) son solo valores por defecto/iniciales.
-2. **Persona y rol son conceptos separados.** Una persona puede tener varios roles (alumno + maestro). Modelar con roles/permisos, no con tipos de usuario excluyentes.
-3. **Nadie se auto-registra.** El seminario crea los usuarios de todos los alumnos y el sistema les envía el acceso. La institución **no** tiene usuario, solo un correo de contacto.
+1. **Nada de valores fijos en el código.** Montos, plazos, notas mínimas, títulos, firmas, ventana de notas, parámetros de biblioteca y calendario van en el módulo de configuración (sección 9 del documento), editable por el Administrador. Los valores del documento (20 días, 3 años, etc.) son solo valores por defecto/iniciales. **Todo en córdobas** (COB-22): los montos que el documento da en $ no se cargan como valores iniciales.
+2. **Persona y rol son conceptos separados.** Una persona puede tener varios roles (alumno + maestro). Modelar con roles/permisos, no con tipos de usuario excluyentes. Un solo rol de registro académico (todos son coordinador).
+3. **Nadie se auto-registra.** El seminario crea los usuarios de todos los alumnos y el sistema les envía el acceso al finalizar la admisión; si falta el correo, la admisión queda pendiente pero el alumno ya se inscribe y genera cobros (ACC-06). La institución es una persona jurídica **sin** usuario, solo con correo de contacto.
 4. **El sistema no factura.** El recibo oficial de caja es manual; el sistema solo registra su número (único), fecha y concepto (COB-17). Un recibo anulado se conserva y puede tener uno de reemplazo (COB-18).
-5. **Quién paga:** institución solo si hay vínculo **y** marca "paga la institución"; en cualquier otro caso paga el alumno (COB-01/02). El vínculo por sí solo no implica pago.
-6. **Mora** bloquea consulta de notas y acceso a biblioteca, **no** la emisión de certificados (MOR-03). La mora de una institución solo notifica, no bloquea a sus alumnos (COB-16). No hay recargos.
-7. **Notas:** escala 0–100, mínima de aprobación configurable **por programa**. Tras el cierre del maestro solo registro corrige, con justificación obligatoria (REG-18). El prerrequisito exige materia **aprobada**.
+5. **Quién paga:** institución solo si hay vínculo **y** marca "paga la institución"; en cualquier otro caso paga el alumno (COB-01/02). El vínculo por sí solo no implica pago. Excepción: la recuperación de un módulo en otra institución siempre la paga el alumno (COB-21). El cobro mensual parte del arancel del programa y la carga del trimestre lo ajusta (COB-07/08). Sin pagos parciales (COB-23).
+6. **Mora** bloquea consulta de notas y préstamos físicos de biblioteca, **no** la emisión de certificados (MOR-03). La mora de una institución solo notifica, no bloquea a sus alumnos (COB-16). No hay recargos.
+7. **Notas:** escala 0–100, mínima de aprobación configurable **por programa**. Tras el cierre del maestro solo registro corrige, con justificación obligatoria (REG-18). El prerrequisito exige materia **aprobada**, es de la materia y se ignora si la requerida no está en el pensum del alumno (REG-02). La materia es un catálogo con código interno; aprobada en un programa, vale en todos (REG-32).
 8. **Ver notas ≠ emitir certificado** (REG-23). Solo la emisión se asocia a un pago; las emisiones sin pago (reimpresión, uso interno) deben registrar motivo (REG-26).
 9. **Biblioteca sin rol propio:** la gestionan admisión y registro. La cola de préstamos respeta el orden estrictamente (BIB-08).
-10. **Auditoría** (historial de cambios) en notas, recibos, becas y certificados (TEC-07, propuesta alineada con REG-18, COB-18, REG-26).
+10. **Auditoría** (historial de cambios) en notas, recibos, becas, certificados y pensums con `django-simple-history` (TEC-07, alineada con REG-18, COB-18, REG-26, REG-02).
 
 ## Guías de Python y Django
 
@@ -92,7 +97,7 @@ Actúa como experto en Python, Django y aplicaciones web escalables. Respuestas 
 
 ## Fuera de alcance (no construir)
 
-Facturación/recibo oficial, aviso de apertura de inscripción a alumnos, cupo mínimo de materias, gestión de archivos de libros digitales (solo se guardan enlaces; viven en Notion), rol de presidente.
+Facturación/recibo oficial, aviso de apertura de inscripción a alumnos, cupo mínimo de materias, cualquier dato de libros digitales (ni archivos ni enlaces: viven en Notion y llegan al índice por una automatización externa, BIB-04), registro o validación de horas clase, creación de cuentas de correo para alumnos (ACC-06), rol de presidente.
 
 ## Convenciones
 
