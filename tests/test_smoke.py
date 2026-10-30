@@ -1,6 +1,6 @@
 import pytest
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 
 def test_settings_cargan():
@@ -9,7 +9,7 @@ def test_settings_cargan():
 
 @pytest.mark.django_db
 def test_consulta_simple_a_la_bd():
-    assert User.objects.count() == 0
+    assert get_user_model().objects.count() == 0
 
 
 @pytest.mark.django_db

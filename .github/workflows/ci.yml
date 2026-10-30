@@ -34,6 +34,8 @@ jobs:
       DB_PASSWORD: seminario_ci
       DB_HOST: localhost
       DB_PORT: '5432'
+      # Valor ficticio: CI no escribe adjuntos; solo hace falta que la variable exista.
+      ADJUNTOS_ROOT: /tmp/seminario-adjuntos-ci
 
     steps:
       - uses: actions/checkout@v4
@@ -43,9 +45,10 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: requirements*.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Django check (equivalente a "build")
         run: python manage.py check
@@ -54,5 +57,8 @@ jobs:
       - name: Verificar migraciones pendientes
         run: python manage.py makemigrations --check --dry-run
 
+      - name: Migrar una base vacía
+        run: python manage.py migrate --noinput
+
       - name: Tests
-        run: python manage.py test
+        run: pytest -v
