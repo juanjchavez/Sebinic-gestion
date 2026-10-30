@@ -3,4 +3,5 @@ __pycache__/
 .env
 media/
 staticfiles/
-Claude/reviews
+claude/*
+.pytest_cache/
