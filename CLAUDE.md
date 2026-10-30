@@ -129,4 +129,12 @@ Migraciones:
 python manage.py migrate
 ```
 
-Pruebas y despliegue se documentarán cuando existan (ticket 3). Las cinco carpetas de `apps/` son marcadores `.gitkeep` hasta que se cree cada app con `startapp`.
+Pruebas:
+
+```powershell
+pytest
+```
+
+Despliegue se documentará cuando exista.
+
+Las cinco carpetas de `apps/` son marcadores `.gitkeep` hasta que se cree cada app con `startapp`.

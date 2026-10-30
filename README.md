@@ -73,6 +73,22 @@ python manage.py runserver
 
 Abrir [http://127.0.0.1:8000/](http://127.0.0.1:8000/) en el navegador. `/admin/` ya funciona y muestra la pantalla de inicio de sesión.
 
+## Pruebas
+
+Instalar las dependencias de desarrollo (incluye las de producción):
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
+Correr las pruebas:
+
+```powershell
+pytest
+```
+
+Las pruebas corren contra una base de datos de prueba separada (creada y destruida automáticamente por `pytest-django`); la base de desarrollo no se toca. Cada prueba que cubre una regla de negocio debe citar su ID con el marcador `regla`, por ejemplo `@pytest.mark.regla("COB-17")`; para ver qué regla cubre cada prueba, correr `pytest -v`.
+
 ## Estructura de carpetas
 
 ```
