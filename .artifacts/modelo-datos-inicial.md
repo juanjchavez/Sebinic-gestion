@@ -1,8 +1,8 @@
-# Modelo de datos inicial (v4, para discusión)
+# Modelo de datos inicial (v6, para discusión)
 
 **Estado:** PROPUESTA. Nada de esto es una regla firme hasta que se revise.
-**Fecha:** 2026-10-29 (v0: 2026-10-28, v1 a v3: 2026-10-29)
-**Fuente:** `.artifacts/shared-understanding-seminario.md` (las reglas se citan por ID) y las respuestas de la revisión (identificadas como A1–A8, N1–N15, B1–B11 y C1–C6 en la sección 4.2).
+**Fecha:** 2026-10-30 (v0: 2026-10-28, v1 a v3: 2026-10-29, v4 y v5: 2026-10-29)
+**Fuente:** `.artifacts/shared-understanding-seminario.md` (las reglas se citan por ID) y las respuestas de la revisión (identificadas como A1–A8, N1–N15, B1–B11, C1–C6 y Q1–Q12 en la sección 4.2).
 
 Este documento propone las entidades, relaciones y dependencias entre apps que se pueden extraer del documento de Shared Understanding. Sirve de base para que se corrija y amplíe antes de escribir el primer `models.py`.
 
@@ -12,6 +12,28 @@ Convenciones del documento:
 - `[PENDIENTE n]` remite a la sección 10 del documento de negocio. No se diseña la regla, solo se deja el hueco.
 
 ## Cambios
+
+### v5 → v6 (alinear con las decisiones de `personas`, issue #20)
+
+| # | Cambio | Origen |
+|---|---|---|
+| C40 | ACC-04 queda `[CONFIRMADO]`: el grupo Alumno se asigna al crear el usuario, no se deriva de la ficha. Se corrige la frase "al registrar la ficha". | Q1 |
+| C41 | Nueva entidad `EnvioAcceso`: bandeja de salida de bienvenida y restablecimiento. El usuario se crea aunque falle el envío; queda pendiente y se reenvía por cron. | Q4 |
+| C42 | Nueva operación del servicio de acceso, `cambiar_correo`: cambia `Persona.correo` y `Usuario.email` juntos, solo para el área que otorgó el rol. | Q7 |
+| C43 | Desaparece `TipoAdjunto.permiso_requerido`: un permiso de ver y otro de agregar por tipo, derivados de su código y repartidos entre los roles que correspondan. | Q2 |
+| C44 | El historial (TEC-07) incluye `Persona` y `Usuario` (con sus roles), excluyendo `password` y `last_login`. | Q8 |
+| C45 | `Usuario` hereda de `AbstractBaseUser` y `PermissionsMixin`, no de `AbstractUser`: evita los campos `username`, `first_name` y `last_name`, que quedarían sin usar porque ya viven en `Persona`. Requiere un `UserManager` propio. **Confirmado por el usuario el 2026-10-30.** | Historias `personas` |
+| C46 | TEC-04 suma la nota de que, mientras no se confirme con el servidor del VPS, los adjuntos los entrega Django tras verificar el permiso. | Q10 |
+
+Q3, Q5, Q6, Q9, Q11 y Q12 no cambian entidades de este modelo (quedan documentadas en `claude/plans/historias-app-personas.md`).
+
+### v4 → v5 (historias de la app `personas`)
+
+| # | Cambio | Origen |
+|---|---|---|
+| C39 | El **Administrador es el superusuario** de Django, no un grupo. Quedan cuatro grupos: Admisión y cobranza, Registro académico, Maestro y Alumno. Reemplaza "Superusuario ≠ rol Administrador" de v1. | Q3b de `claude/plans/historias-app-personas.md` |
+
+Las decisiones Q1, Q2, Q4, Q7, Q8 y Q10 de esas historias se aplicaron en v6 (ver arriba).
 
 ### v3 → v4 (respuestas de la ronda 4)
 
@@ -75,7 +97,7 @@ C1 institución = persona jurídica · C2 adjuntos centralizados con descarga pr
 
 Identificación con `tipo_identificacion` (cédula, RUC, pasaporte, otro) y `numero_identificacion`. Son obligatorios y el par es único (A3). Los datos propios de cada papel van en perfiles 1:1 de las apps de dominio: `Alumno` (ficha) e `Institucion`.
 
-**Usuario.** `personas.Usuario` hereda de `AbstractUser` y se declara `AUTH_USER_MODEL = "personas.Usuario"` **antes de la primera migración de cualquier app** (hoy no está declarado; hay que recrear la base local).
+**Usuario.** `personas.Usuario` hereda de **`AbstractBaseUser` y `PermissionsMixin`** (no de `AbstractUser`, para no heredar `username`, `first_name` ni `last_name`, que ya viven en `Persona`; `C45`, confirmado por el usuario el 2026-10-30) y se declara `AUTH_USER_MODEL = "personas.Usuario"` **antes de la primera migración de cualquier app** (hoy no está declarado; hay que recrear la base local). Necesita un `UserManager` propio (`create_user` / `create_superuser`), que `AbstractBaseUser` no trae.
 
 - `Usuario.persona` es `OneToOne`. Admite nulo solo en cuentas técnicas.
 - Una persona jurídica **nunca** tiene usuario (ACC-03). Lo hacen cumplir el servicio de acceso y `clean()`.
@@ -83,30 +105,32 @@ Identificación con `tipo_identificacion` (cédula, RUC, pasaporte, otro) y `num
   - Si el alumno no tiene correo propio, el seminario se lo crea **fuera del sistema** (C31, B11). El sistema no gestiona cuentas de correo.
   - El teléfono queda como dato de contacto, no como usuario. Se recicla, se comparte en familia y no da un canal para recuperar la contraseña sin una integración de SMS o WhatsApp ([PENDIENTE 10]).
   - El correo de inicio de sesión vive en `Usuario` (es una credencial). `Persona.correo` es de contacto, admite vacío mientras la admisión está pendiente y, cuando hay usuario, tiene el mismo valor.
-- **Roles = `Group` de Django**: Administrador, Admisión y cobranza, Registro académico, Maestro, Alumno. "Registro académico" es un solo grupo: todo usuario de registro es coordinador (C24, B5).
+- **Roles = `Group` de Django**: Admisión y cobranza, Registro académico, Maestro, Alumno. "Registro académico" es un solo grupo: todo usuario de registro es coordinador (C24, B5). El **Administrador** no es un grupo: es el superusuario (C39).
 - **Administrador = nivel de sistema** (C25, B6): configuración, usuarios y roles. Lo que el documento llama "administración" en las operaciones es Admisión y cobranza.
-- **Superusuario ≠ rol Administrador.** El superusuario es la cuenta técnica de instalación; el Administrador es un grupo con permisos de configuración.
+- **Administrador = superusuario** (C39). Se crea con `createsuperuser` y puede no tener persona asociada. Pasa todas las verificaciones de permisos de Django, así que las verificaciones por área (por ejemplo, la descarga de adjuntos, ADM-08) no usan `has_perm`: el Administrador no ve adjuntos. Siempre debe haber al menos un Administrador activo.
 
-**Servicio de acceso (TEC-11).** `otorgar_acceso(persona, rol, otorgado_por)`: si la persona no tiene usuario lo crea y envía el acceso; si ya lo tiene, solo le suma el rol (ACC-02, ACC-03). Exige que la persona tenga correo. Se completa con `quitar_rol` y `restablecer_acceso`.
+**Servicio de acceso (TEC-11).** `otorgar_acceso(persona, rol, otorgado_por)`: si la persona no tiene usuario lo crea y envía el acceso; si ya lo tiene, solo le suma el rol (ACC-02, ACC-03). Exige que la persona tenga correo. Se completa con `quitar_rol`, `restablecer_acceso` y `cambiar_correo(persona, correo_nuevo, cambiado_por)` (Q7), que actualiza `Persona.correo` y `Usuario.email` **juntos, en la misma transacción**, y solo lo puede ejecutar el área que otorgó el rol de esa persona (Admisión y cobranza para alumnos, Registro académico para maestros, el Administrador para cualquiera).
 
 | Quién otorga | Roles que puede otorgar | Regla |
 |---|---|---|
-| Administrador | Cualquiera | Sección 3 |
+| Administrador (superusuario) | Cualquiera; solo un Administrador nombra a otro | Sección 3, C39 |
 | Admisión y cobranza | Solo Alumno, **automáticamente** al finalizar la admisión (C31) | ACC-01, ADM-07 |
 | Registro académico | Maestro | ACC-02, REG-07, N12 |
 
-**Admisión en dos pasos (C31, B11).** La ficha se registra aunque la persona aún no tenga correo; queda **pendiente de finalizar**. Cuando admisión carga el correo, `finalizar_admision` llama a `otorgar_acceso(persona, Alumno)` en la misma transacción: crea el usuario y envía un **correo de bienvenida** con las orientaciones y el enlace para fijar la contraseña (ADM-07). Así ACC-01 se cumple sin crear usuarios sin credencial. El envío usa SMTP con credenciales por variables de entorno; el proveedor se define en el despliegue.
+**Admisión en dos pasos (C31, B11).** La ficha se registra aunque la persona aún no tenga correo; queda **pendiente de finalizar**. Cuando admisión carga el correo, `finalizar_admision` llama a `otorgar_acceso(persona, Alumno)` en la misma transacción: crea el usuario, le **asigna el grupo Alumno** (`ACC-04`, Q1) y registra un `EnvioAcceso` de bienvenida con las orientaciones y el enlace para fijar la contraseña (ADM-07). Así ACC-01 se cumple sin crear usuarios sin credencial.
 
-**ACC-04:** se mantiene la recomendación de **asignar** el grupo Alumno al registrar la ficha.
+**Envío que falla (Q4).** Si el envío de la bienvenida falla, el **usuario se crea igual**: el `EnvioAcceso` queda en estado `pendiente` con el motivo del último intento, sin bloquear la admisión ni a quien operaba. Un comando de cron (TEC-05) reintenta los envíos pendientes hasta un máximo de intentos configurable; agotado el máximo, solo queda el aviso dentro del sistema. El envío usa SMTP con credenciales por variables de entorno; el proveedor se define en el despliegue.
+
+**ACC-04 [CONFIRMADO]:** el grupo Alumno se **asigna al crear el usuario**, dentro de `otorgar_acceso`; no se deriva de la ficha ni se asigna al registrarla.
 
 ### D2. Adjuntos: el archivo fuera de la BD y la descarga detrás de permisos
 
 - La BD guarda la **clave de almacenamiento** (ruta relativa), no una URL. El archivo vive en un directorio **privado**, fuera de la raíz web (TEC-04).
 - Una sola vista de descarga, `adjuntos/<uuid>/`:
   1. El servicio verifica el permiso.
-  2. Si se concede, el servidor web entrega el archivo (`X-Sendfile` / `X-Accel-Redirect`, se confirma con Webuzo). Si no se puede, Django lo sirve con `FileResponse`.
+  2. Por ahora, si se concede, **Django** entrega el archivo con `FileResponse` (Q10, TEC-04). El spike `PER-17` define si el servidor web puede entregarlo directamente (`X-Sendfile` / `X-Accel-Redirect`); si Webuzo lo permite, el cambio es solo de configuración, sin tocar esta vista.
 - Todo adjunto tiene un **propietario** (la persona a la que pertenece) y un **tipo**.
-- **Visibilidad (C9, A2):** cada `TipoAdjunto` pertenece a un **área** y solo esa área lo ve. El propietario **no** tiene acceso a sus adjuntos: el alumno no es usuario de esos documentos.
+- **Permisos por tipo (Q2):** cada `TipoAdjunto` tiene un **código**, del que se derivan **dos permisos de Django**: uno de **ver** y otro de **agregar** ese tipo. Desaparece el campo `permiso_requerido`: ya no hay un único permiso de área por tipo, sino dos permisos por tipo que se reparten entre los grupos que correspondan. Así un tipo puede verlo **más de un área** (el certificado de notas, que ven Registro y Admisión, REG-25) sin romper la regla de "permisos por tipo". El propietario **no** tiene acceso a sus adjuntos: el alumno no es usuario de esos documentos (C9, A2).
 
 | Tipo de adjunto | Lo agrega | Lo ve | Regla |
 |---|---|---|---|
@@ -188,13 +212,15 @@ Cambia con N4: el seminario identifica cada clase con un **código interno propi
 | `Persona` | Identidad natural o jurídica, contacto. | ACC-03, A3 |
 | `Usuario` | Acceso con correo. Solo personas naturales. | ACC-01–03, N11 |
 | `Group` (Django) | Roles. | Sección 3, N12 |
-| `TipoAdjunto` | Catálogo de tipos, con el permiso del área que los ve. | D2, A2 |
+| `EnvioAcceso` | Bandeja de salida de bienvenida y restablecimiento; registra intentos y reenvíos. | ACC-01, ADM-07, Q4, Q12 |
+| `TipoAdjunto` | Catálogo de tipos; cada código deriva un permiso de ver y uno de agregar. | D2, Q2 |
 | `Adjunto` | Archivo en almacenamiento privado, de una persona. | TEC-04, D2 |
 
 ```mermaid
 erDiagram
     Persona ||--o| Usuario : "acceso (solo natural)"
     Usuario }o--o{ Group : "roles"
+    Usuario ||--o{ EnvioAcceso : "bienvenida / restablecimiento (Q4)"
     Persona ||--o{ Adjunto : "propietario"
     TipoAdjunto ||--o{ Adjunto : ""
     Persona {
@@ -217,9 +243,8 @@ erDiagram
     }
     TipoAdjunto {
         int id PK
-        string codigo UK
+        string codigo UK "deriva los permisos ver_adjunto_<codigo> y agregar_adjunto_<codigo> (Q2)"
         string nombre
-        string permiso_requerido "permiso Django del área que lo ve"
     }
     Adjunto {
         uuid id PK
@@ -232,6 +257,17 @@ erDiagram
         string sha256
         datetime subido_en
         int subido_por_id FK
+    }
+    EnvioAcceso {
+        int id PK
+        int usuario_id FK
+        string tipo "bienvenida | restablecimiento"
+        string estado "pendiente, enviado, agotado (Q4, Q12)"
+        int intentos
+        datetime ultimo_intento_en
+        string motivo_ultimo_error
+        datetime enviado_en
+        int enviado_por_id FK "nulo si lo envía el cron (Q6, Q12)"
     }
 ```
 
@@ -641,6 +677,7 @@ Consecuencia: **las vistas de biblioteca para alumnos quedan bloqueadas hasta de
 - `Inscripcion` (notas), `Pago`, `Cobro`, `Beca`, `CertificadoNotas`.
 - `AlumnoPrograma` (cambio manual de pensum, N5).
 - `Pensum` y `PensumUnidad` (confirmación de prerrequisitos omitidos, C37).
+- `Persona` y `Usuario` (Q8), incluidos los cambios de roles de `Usuario`. Se excluyen `password` y `last_login`: no son datos de negocio y el historial no debe exponerlos.
 
 El usuario que hizo el cambio se toma de la petición con el middleware de la librería.
 
@@ -653,6 +690,17 @@ El usuario que hizo el cambio se toma de la petición con el middleware de la li
 No quedan preguntas abiertas del modelo. Siguen abiertos los pendientes del documento de negocio listados al final de 4.2.
 
 ### 4.2 Resueltas
+
+**Ronda 6 (historias `personas`, issue #20)**
+
+| # | Respuesta | Dónde se aplicó |
+|---|---|---|
+| Q1 | ACC-04: el rol Alumno se asigna al crear el usuario, no se deriva de la ficha. | C40, D1 |
+| Q2 | Un permiso de ver y otro de agregar por tipo de adjunto, derivados de su código; desaparece `permiso_requerido`. | C43, D2, 2.1 |
+| Q4 | El usuario se crea aunque falle el correo de bienvenida; queda pendiente de enviar en `EnvioAcceso` y se reintenta por cron. | C41, D1, 2.1 |
+| Q7 | Una sola operación (`cambiar_correo`) cambia el correo de `Persona` y `Usuario` juntos, solo para el área que otorgó el rol. | C42, D1 |
+| Q8 | El historial incluye `Persona` y `Usuario` (con sus roles), sin `password` ni `last_login`. | C44, sección 3 |
+| Q10 | Los adjuntos los entrega Django por ahora (`FileResponse`); el spike PER-17 define si el servidor web puede hacerlo. | C46, D2 |
 
 **Ronda 5**
 
@@ -714,7 +762,7 @@ No quedan preguntas abiertas del modelo. Siguen abiertos los pendientes del docu
 
 N10, N11 y N13 se cerraron en la ronda 3 como B7, B11 y B6.
 
-Pendientes del documento que siguen tocando el modelo: ACC-04, [PENDIENTE 1] ★, 2, 4, 5, 7, 8, 9 y 11, TEC-08 (herramienta del índice). TEC-07 queda decidido (C36). Se proponen como resueltos por el diseño el [PENDIENTE 3] (A6) y el [PENDIENTE 6] (los cobros del trimestre limitan el pago anticipado).
+Pendientes del documento que siguen tocando el modelo: [PENDIENTE 1] ★, 2, 4, 5, 7, 8, 9 y 11, TEC-08 (herramienta del índice). TEC-07 queda decidido (C36). ACC-04 queda decidido (Q1, v6). Se proponen como resueltos por el diseño el [PENDIENTE 3] (A6) y el [PENDIENTE 6] (los cobros del trimestre limitan el pago anticipado).
 
 ### 4.3 Desajustes con el documento de negocio y `CLAUDE.md`
 
@@ -726,6 +774,7 @@ Pendientes del documento que siguen tocando el modelo: ACC-04, [PENDIENTE 1] ★
 | BIB-05, TEC-08 | El índice es una idea sin decidir. | El índice es la vía de navegación de biblioteca y su herramienta bloquea esas vistas (C18). |
 | ACC-01, ADM-07 | El usuario se crea al registrar al alumno. | Se crea al **finalizar la admisión**, cuando hay correo; se envía un correo de bienvenida (C31). |
 | ADM-06, COB-09, COB-12, COB-20, REG-25, BIB-11 | "Administración". | "Admisión y cobranza" (C25). |
+| Sección 3 | El Administrador figura como un rol más. | Es el superusuario del sistema, no un grupo (C39). |
 | Sección 3, ACC-02, REG-07 | "El administrador" crea maestros y participa en registro. | Crear usuarios y otorgar roles es una tarea de sistema, así que el Administrador sigue pudiendo crear maestros; no opera en registro (C25). |
 | REG-02, REG-10 | El prerrequisito se valida siempre. | Se ignora si la materia requerida no está en el pensum del alumno; registro confirma la omisión al guardar el pensum (C37). |
 | COB-14, COB-15 | El módulo se cobra a la institución; solo el arreglo particular se cobra al alumno. | Nueva regla: la recuperación de un módulo en otra institución se cobra al alumno, con monto propio (C35, C38). |
@@ -747,6 +796,8 @@ Pendientes del documento que siguen tocando el modelo: ACC-04, [PENDIENTE 1] ★
 | ADM-01, sección 5 | "Hoja de matrícula". | Choca con el glosario (matrícula = pago anual). |
 | Sección 9 / REG-04 | El calendario lo configura el Administrador / lo define registro. | Vive en `configuracion`, con permiso para Registro académico (D4). |
 | Sección 10, pendiente 10 | El canal de notificaciones está abierto. | Al menos la bienvenida va por correo (SMTP, C31). El resto sigue pendiente. |
+
+**Aplicado el 2026-10-30 (issue #20):** ACC-04 pasa a `[CONFIRMADO]` en el documento de negocio con el texto "se asigna al crear el usuario" (C40, Q1). TEC-04 suma la nota de que, mientras no se confirme con el servidor del VPS, los adjuntos los entrega Django tras verificar el permiso (C46, Q10).
 
 ---
 

@@ -53,7 +53,7 @@ El acceso se maneja con **roles y permisos**. **Persona y rol son conceptos sepa
 
 | Rol | Qué hace |
 |---|---|
-| **Administrador** | Actúa **a nivel de sistema**: configura el sistema (sección 9), crea usuarios de cualquier rol (incluidos maestros), reasigna roles, restablece contraseñas. **No participa en lo operativo.** |
+| **Administrador** | Actúa **a nivel de sistema**: configura el sistema (sección 9), crea usuarios de cualquier rol (incluidos maestros), reasigna roles, restablece contraseñas. **No participa en lo operativo.** Es el **superusuario** del sistema, no un grupo de permisos aparte. |
 | **Admisión y cobranza** | Un solo rol. Registra alumnos e instituciones, gestiona cobros, pagos, becas y recibos. Aprueba o cancela préstamos de biblioteca y recibe devoluciones. Puede crear solo usuarios de **alumno**. |
 | **Registro académico** | **Un solo rol**: todo usuario de registro es coordinador y tiene todas sus funciones. Gestiona pensums, calendario, horarios, inscripciones, notas, certificados y promociones. También aprueba préstamos y recibe devoluciones. Junto al administrador, **crea o designa maestros**. |
 | **Maestro** | Registra notas de los alumnos de sus materias o módulos. |
@@ -69,7 +69,7 @@ El acceso se maneja con **roles y permisos**. **Persona y rol son conceptos sepa
 - **ACC-01 [CONFIRMADO]** Todo alumno recibe **automáticamente** un usuario con el rol **Alumno** al **finalizar su admisión** (ver `ACC-06`), con un **correo de bienvenida** con orientaciones y su acceso (deriva de `ADM-07`). Nadie crea a mano el usuario de un alumno.
 - **ACC-02 [CONFIRMADO]** Los **maestros se crean manualmente** por registro académico o por el administrador (deriva de `REG-07`). Un maestro puede ser también alumno: la misma persona suma el rol.
 - **ACC-03 [CONFIRMADO]** Cada persona tiene **un solo usuario** y puede tener **varios roles**. La institución no tiene usuario.
-- **ACC-04 [PENDIENTE de diseño]** Si el rol Alumno se **asigna** (como cualquier otro rol) o se **deriva** de tener una ficha de alumno. Recomendación: asignarlo. Se resuelve al definir los modelos de personas y roles.
+- **ACC-04 [CONFIRMADO]** El rol Alumno se **asigna al crear el usuario**, igual que cualquier otro rol; no se deriva de tener una ficha de alumno.
 - **ACC-05 [CONFIRMADO]** El usuario **inicia sesión con su correo**. El teléfono es solo un dato de contacto.
 - **ACC-06 [CONFIRMADO]** Si el alumno no tiene correo, el seminario se lo crea **fuera del sistema**. Mientras tanto, la ficha se registra con la admisión **pendiente de finalizar**. Al cargar el correo se finaliza la admisión y se crea el usuario (`ACC-01`). Con la admisión pendiente, el alumno **sí se inscribe y genera cobros**; solo espera su acceso.
 
@@ -297,6 +297,7 @@ Nada de esto va fijo en el código. Todos los montos van en **córdobas** (`COB-
 - En trimestres recortados se mantienen las horas clase, no la duración de los bloques.
 - **2026-10-29, revisión del modelo de datos** (detalle en `.artifacts/modelo-datos-inicial.md`, sección 4.2):
   - "Administración" en lo operativo = Admisión y cobranza; el Administrador actúa a nivel de sistema.
+- **2026-10-29, historias de la app `personas`:** el Administrador es el **superusuario** del sistema y no un grupo aparte. Los demás roles son grupos (Admisión y cobranza, Registro académico, Maestro, Alumno). El Administrador **no** descarga adjuntos (`ADM-08`).
   - La institución es una persona jurídica; persona e institución comparten el manejo de adjuntos.
   - El cobro parte del arancel del programa y la carga del trimestre lo ajusta (`COB-07`, `COB-08`).
   - Todo en córdobas, sin pagos parciales (`COB-22`, `COB-23`).
@@ -314,7 +315,7 @@ Estas decisiones no cambian las reglas de negocio. Fijan el terreno donde se con
 - **TEC-01 [CONFIRMADO]** **Framework: Django 5.2 (LTS)**, arquitectura de **monolito** con una app por área (admisión y cobranza, registro académico, biblioteca) más un módulo de configuración y un módulo de personas y accesos (ver `TEC-11`). Se eligió por traer autenticación, roles y permisos, panel de administración (útil para la sección 9), ORM con migraciones y buen soporte para PDFs, auditoría y tareas programadas.
 - **TEC-02 [CONFIRMADO]** **Alojamiento: VPS con panel Webuzo.** La app corre con **gunicorn** en un puerto interno (30000) y se publica desde el *Application Manager* de Webuzo (tipo Python 3, entorno *Production*). Las variables sensibles (`SECRET_KEY`, base de datos, `DEBUG=False`) van como **variables de entorno**, nunca en el repositorio.
 - **TEC-03 [CONFIRMADO]** **Python 3.11.3** instalado en el VPS (`/usr/local/apps/python3/bin/python3`), compatible con Django 5.2. Se usa un **entorno virtual** por proyecto.
-- **TEC-04 [CONFIRMADO]** Los archivos estáticos y los **adjuntos** (soportes escaneados, certificados emitidos) se sirven **fuera de Django** y se almacenan como archivos, no dentro de la base de datos. Se deben incluir en los respaldos.
+- **TEC-04 [CONFIRMADO]** Los archivos estáticos y los **adjuntos** (soportes escaneados, certificados emitidos) se sirven **fuera de Django** y se almacenan como archivos, no dentro de la base de datos. Se deben incluir en los respaldos. **Provisional:** mientras no se confirme con el servidor del VPS si puede entregar los adjuntos directamente, los entrega **Django** tras verificar el permiso del área; el cambio a servirlos fuera de Django sería solo de configuración, sin tocar la vista de descarga.
 - **TEC-05 [CONFIRMADO]** Los procesos programados (avisos de mora, ventanas de notas vencidas, notificaciones de cola) se ejecutan con **cron** del VPS.
 - **TEC-06 [PROPUESTA]** Generación de PDF (certificado de notas) con una librería que **no** dependa de paquetes del sistema (por ejemplo ReportLab), salvo que se decida instalar dependencias en el VPS.
 - **TEC-07 [CONFIRMADO]** **Auditoría** (historial de cambios) en notas, recibos, becas, certificados y pensums, por exigirlo las reglas `REG-18`, `COB-18`, `REG-26` y `REG-02`. Se implementa con **`django-simple-history`**.
