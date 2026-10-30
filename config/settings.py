@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'simple_history',
+    'apps.personas',
 ]
 
 MIDDLEWARE = [
@@ -52,6 +54,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -128,3 +131,32 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Usuario del proyecto (ACC-05): inicia sesión con correo. Debe existir antes de la primera migración.
+AUTH_USER_MODEL = 'personas.Usuario'
+
+# Provisionales: hoy el único inicio de sesión es el del panel; el #22 los reemplaza.
+LOGIN_URL = 'admin:login'
+LOGIN_REDIRECT_URL = 'admin:index'
+
+# Adjuntos: directorio PRIVADO fuera de la raíz web y del repo (TEC-04, ADM-08). Obligatoria.
+ADJUNTOS_ROOT = Path(env('ADJUNTOS_ROOT'))
+ADJUNTO_TAMANO_MAX_MB = env.int('ADJUNTO_TAMANO_MAX_MB', default=10)
+
+# URL pública del sitio, para armar enlaces en los correos (bienvenida, restablecer acceso).
+URL_BASE_SITIO = env('URL_BASE_SITIO', default='http://localhost:8000')
+
+# Correo saliente (SMTP). Valores provisionales hasta que el seminario elija proveedor.
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = env('EMAIL_HOST', default='localhost')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='webmaster@localhost')
+
+# Acceso de usuarios (los usa el servicio de acceso, #23). Provisionales.
+ENLACE_ACCESO_VIGENCIA_DIAS = env.int('ENLACE_ACCESO_VIGENCIA_DIAS', default=3)
+ACCESO_REINTENTOS_MAX = env.int('ACCESO_REINTENTOS_MAX', default=3)
