@@ -6,11 +6,12 @@ Reglas que implementa este módulo:
 - ACC-06: una persona puede registrarse sin correo (la admisión queda pendiente).
 - TEC-07: auditoría de cambios con django-simple-history.
 - TEC-11: esta app no importa ninguna otra app del proyecto.
+- Sección 3, C39: conservar al último Administrador activo con acceso al panel.
 """
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, router, transaction
 from django.db.models import Q
 from django.db.models.functions import Lower
 from django.utils import timezone
@@ -238,18 +239,59 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         if self.persona_id and self.persona.tipo == Persona.Tipo.JURIDICA:
             raise ValidationError({'persona': 'Una persona jurídica no puede tener usuario (ACC-03).'})
 
-    def save(self, *args, **kwargs):
+    def validar_administrador_activo(self, using=None, update_fields=None):
+        """C39: una modificación no puede retirar al último Administrador operativo.
+
+        La validación del formulario es anticipada; save la repite bajo bloqueo.
+        """
+        if not self.pk:
+            return
+        alias = using or router.db_for_write(type(self), instance=self)
+        indicadores = {'is_active', 'is_staff', 'is_superuser'}
+        campos = indicadores if update_fields is None else indicadores.intersection(update_fields)
+        actual = type(self).objects.using(alias).filter(pk=self.pk).values(*indicadores).first()
+        if actual is None or not all(actual.values()):
+            return
+        sigue_operativo = all(
+            getattr(self, campo) if campo in campos else actual[campo]
+            for campo in indicadores
+        )
+        if not sigue_operativo and not type(self).objects.using(alias).filter(
+            is_active=True, is_staff=True, is_superuser=True,
+        ).exclude(pk=self.pk).exists():
+            raise ValidationError(
+                'Debe permanecer al menos un Administrador activo con acceso al panel (C39).'
+            )
+
+    def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
         self.email = normalizar_correo(self.email)
-        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            update_fields = frozenset(update_fields)
+        kwargs = dict(
+            force_insert=force_insert, force_update=force_update,
+            using=using, update_fields=update_fields,
+        )
         # Al iniciar sesión Django guarda solo last_login; eso no debe generar historial.
         if update_fields is not None and set(update_fields) == {'last_login'}:
             self.skip_history_when_saving = True
             try:
-                super().save(*args, **kwargs)
+                super().save(**kwargs)
             finally:
                 del self.skip_history_when_saving
             return
-        super().save(*args, **kwargs)
+        indicadores = {'is_active', 'is_staff', 'is_superuser'}
+        campos = indicadores if update_fields is None else indicadores.intersection(update_fields)
+        if self.pk and any(not getattr(self, campo) for campo in campos):
+            alias = using or router.db_for_write(type(self), instance=self)
+            with transaction.atomic(using=alias):
+                # Un único orden común evita que dos bajas independientes dejen cero administradores.
+                list(type(self).objects.using(alias).filter(
+                    is_active=True, is_staff=True, is_superuser=True,
+                ).order_by('pk').select_for_update().values_list('pk', flat=True))
+                self.validar_administrador_activo(using=alias, update_fields=update_fields)
+                super().save(**kwargs)
+        else:
+            super().save(**kwargs)
 
     def get_full_name(self):
         return self.persona.nombre_completo if self.persona_id else self.email

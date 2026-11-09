@@ -114,7 +114,36 @@ python manage.py runserver
 
 Abrir [http://127.0.0.1:8000/](http://127.0.0.1:8000/) en el navegador. `/admin/` ya funciona y muestra la pantalla de inicio de sesión, que pide **correo** y contraseña (ACC-05).
 
-`createsuperuser` pide solo correo y contraseña. Esa cuenta es la cuenta técnica de instalación, para entrar al panel: **no** es el rol Administrador del sistema (modelo de datos §D1). Los roles se asignan en el #22.
+`createsuperuser` pide solo correo y contraseña. El **superusuario es el Administrador del sistema** (sección 3, C39); puede ser una cuenta técnica sin Persona asociada.
+
+## Roles y panel del Administrador
+
+Al ejecutar `migrate`, la señal `post_migrate` crea los cuatro grupos que falten (ACC-03/04, sección 3):
+
+| Grupo | Permisos iniciales |
+|---|---|
+| Admisión y cobranza | Ver, agregar y modificar Persona |
+| Registro académico | Ver, agregar y modificar Persona |
+| Maestro | Ninguno |
+| Alumno | Ninguno |
+
+La semilla asigna permisos **solo a grupos nuevos**. Migrar otra vez no duplica grupos ni restaura permisos que el Administrador haya quitado. Tampoco elimina grupos ajenos. No existen grupos de sistema Administrador, Biblioteca, Coordinador o Presidente (C24/C39). Una persona puede tener varios roles; la semilla no crea usuarios ni asigna membresías.
+
+Solo un superusuario **activo y con acceso al panel** (`is_active`, `is_superuser` e `is_staff`) entra a `/admin/`. Los grupos operativos no entran, aunque tengan permisos o la marca de acceso al panel. El Administrador puede editar los permisos de cada grupo.
+
+El panel permite registrar y editar personas. Su correo queda de solo lectura cuando tienen usuario, para evitar que diverja del correo de acceso (ACC-05, C42). En usuarios existentes solo se editan estado, acceso al panel y condición de superusuario. No hay alta directa, eliminación, edición de credenciales ni de membresías. Otorgar acceso y cambiar correo se integrará con el servicio #23; las pantallas de acceso pertenecen al #24. La baja disponible es la desactivación.
+
+No se puede desactivar ni retirar la condición de superusuario o el acceso al panel al último Administrador operativo (C39), incluso con dos cambios simultáneos. Las escrituras soportadas usan `Usuario.save()`; `QuerySet.update()`, `bulk_update()` y SQL externo eluden validación e historial y no se deben usar para estos cambios.
+
+Después de migrar, comprobar los grupos con:
+
+```powershell
+python manage.py check --database default --fail-level WARNING
+```
+
+`check` sin `--database` no consulta los grupos. La comprobación distingue grupos faltantes (`personas.W001`), tablas todavía sin crear (`W002`) y conexión inaccesible (`W003`). CI ejecuta esta verificación después de migrar.
+
+Si un grupo fue renombrado, investigar primero cuál es y qué miembros tiene. Restaurar su nombre canónico conserva las membresías. Volver a migrar puede crear un grupo nuevo con el nombre faltante, pero **no transfiere miembros ni elimina el grupo renombrado**: esa reconciliación queda a cargo del Administrador.
 
 ## Pruebas
 
@@ -139,7 +168,7 @@ El CI (`.github/workflows/ci.yml`) instala `requirements-dev.txt`, verifica que 
 ```
 config/             Configuración técnica del proyecto Django (settings, urls, wsgi, asgi)
 apps/
-  personas/         Personas, usuarios, roles y login (modelos Persona y Usuario, selectores, pruebas)
+  personas/         Personas, usuarios, roles, semilla, checks y panel del Administrador
   admision_cobranza/   Admisión y cobranza
   registro_academico/  Registro académico
   biblioteca/          Biblioteca
