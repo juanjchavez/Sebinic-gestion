@@ -60,5 +60,8 @@ jobs:
       - name: Migrar una base vacía
         run: python manage.py migrate --noinput
 
+      - name: Verificar roles instalados
+        run: python manage.py check --database default --fail-level WARNING
+
       - name: Tests
         run: pytest -v

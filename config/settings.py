@@ -38,7 +38,7 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    'config.apps.ConfiguracionAdmin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -136,7 +136,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Usuario del proyecto (ACC-05): inicia sesión con correo. Debe existir antes de la primera migración.
 AUTH_USER_MODEL = 'personas.Usuario'
 
-# Provisionales: hoy el único inicio de sesión es el del panel; el #22 los reemplaza.
+# Provisionales: hoy el único inicio de sesión es el del panel; el #24 los reemplaza.
 LOGIN_URL = 'admin:login'
 LOGIN_REDIRECT_URL = 'admin:index'
 
